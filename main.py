@@ -8,9 +8,11 @@ from aiohttp import web
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Google API bilan bog'lanish va modelni to'g'ri formatda sozlash
+# API sozlash
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel(model_name='gemini-1.5-flash')
+
+# MUHIM: Muammoni yechish uchun eng barqaror va tasdiqlangan modelga o'tamiz
+model = genai.GenerativeModel('gemini-1.0-pro')
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
@@ -29,63 +31,32 @@ async def start_web_server():
     await site.start()
     print(f"Web server started on port {port}")
 
-# --- AI LOGIKASI ---
-async def process_photo_and_ask_ai(photo: types.PhotoSize, prompt: str):
-    file = await bot.get_file(photo.file_id)
-    file_path = file.file_path
-    image_data = await bot.download_file(file_path)
-    image_bytes = image_data.read()
-
-    system_instruction = (
-        "Sen matematika va fizika fanlari bo'yicha professional o'qituvchisan. "
-        "Foydalanuvchi yuborgan rasmdagi misol yoki masalani juda aniq, xatolarsiz va "
-        "bosqichma-bosqich tushuntirib yechib ber. Formulalarni aniq ko'rsat."
-    )
-
-    contents = [
-        system_instruction,
-        prompt,
-        {"mime_type": "image/jpeg", "data": image_bytes}
-    ]
-    response = model.generate_content(contents)
-    return response.text
-
 # --- HANDLERLAR ---
-@dp.message(F.photo, lambda message: message.caption and message.caption.strip().startswith('/bot'))
-async def handle_photo_with_caption(message: types.Message):
-    await message.reply("📖 Rasmdagi misolni tahlil qilyapman, bir oz kuting...")
-    photo = message.photo[-1]
-    user_prompt = message.caption.replace('/bot', '').strip()
-    if not user_prompt: user_prompt = "Ushbu rasmdagi masalani batafsil yechib ber."
-
-    try:
-        answer = await process_photo_and_ask_ai(photo, user_prompt)
-        await message.reply(f"📈 **Yechim:**\n\n{answer}", parse_mode="Markdown")
-    except Exception as e:
-        await message.reply(f"Xatolik yuz berdi: {e}")
-
 @dp.message(lambda message: message.text and message.text.strip().startswith('/bot'))
-async def handle_reply_to_photo(message: types.Message):
-    if message.reply_to_message and message.reply_to_message.photo:
-        await message.reply("🔍 Asl rasmni tekshiryapman, bir oz kuting...")
-        photo = message.reply_to_message.photo[-1]
-        user_prompt = message.text.replace('/bot', '').strip()
-        if not user_prompt: user_prompt = "Ushbu rasmga javob qaytarib, undagi misolni batafsil yechib ber."
+async def handle_group_text(message: types.Message):
+    user_prompt = message.text.replace('/bot', '').strip()
+    
+    if not user_prompt:
+        await message.reply("💡 Salom! Matematika yoki fizikaga oid savolingizni `/bot [savol]` ko'rinishida yozing.")
+        return
 
-        try:
-            answer = await process_photo_and_ask_ai(photo, user_prompt)
-            await message.reply(f"📈 **Yechim:**\n\n{answer}", parse_mode="Markdown")
-        except Exception as e:
-            await message.reply(f"Xatolik yuz berdi: {e}")
-    else:
-        user_prompt = message.text.replace('/bot', '').strip()
-        if user_prompt:
-            await message.reply("🧠 Savolingizni o'ylayapman...")
-            try:
-                response = model.generate_content(user_prompt)
-                await message.reply(f"💡 **Javob:**\n\n{response.text}", parse_mode="Markdown")
-            except Exception as e:
-                await message.reply(f"Xatolik: {e}")
+    await message.reply("🧠 Savolingizni o'ylayapman, bir oz kuting...")
+    
+    try:
+        # Sun'iy intellektga so'rov yuborish
+        response = model.generate_content(
+            f"Sen matematika va fizika fanlari o'qituvchisan. Quyidagi savolga aniq va bosqichma-bosqich javob ber: {user_prompt}"
+        )
+        await message.reply(f"💡 **Javob:**\n\n{response.text}")
+    except Exception as e:
+        # Agarda yana xato bersa, aniq sababini guruhga chiqaradi
+        await message.reply(f"❌ Xatolik yuz berdi:\n`{str(e)}`")
+
+# Rasm bilan ishlaydigan vaqtinchalik sodda handler (Xatolikni kamaytirish uchun)
+@dp.message(F.photo)
+async def handle_photo_info(message: types.Message):
+    if message.caption and message.caption.strip().startswith('/bot'):
+        await message.reply("⚠️ Hozircha modelni matn rejimiga o'tkazdik. Iltimos, savolingizni rasmda emas, matn ko'rinishida yo'zib ko'ring.")
 
 # --- ASOSIY ISHGA TUSHIRISH ---
 async def main():
