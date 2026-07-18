@@ -3,16 +3,22 @@ import asyncio
 from aiogram import Bot, Dispatcher, types, F
 import google.generativeai as genai
 from aiohttp import web
+from concurrent.futures import ThreadPoolExecutor
 
 # API kalitlar - Render Environment Variables orqali o'qiladi
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+# Kalitlarni tekshirish
+if not TELEGRAM_BOT_TOKEN or not GOOGLE_API_KEY:
+    raise ValueError("❌ TELEGRAM_BOT_TOKEN yoki GOOGLE_API_KEY sozlangan emas!")
+
 # API sozlash
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# MUHIM: Muammoni yechish uchun eng barqaror va tasdiqlangan modelga o'tamiz
+# Model sozlash
 model = genai.GenerativeModel('gemini-1.0-pro')
+executor = ThreadPoolExecutor(max_workers=3)
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
@@ -43,16 +49,27 @@ async def handle_group_text(message: types.Message):
     await message.reply("🧠 Savolingizni o'ylayapman, bir oz kuting...")
     
     try:
-        # Sun'iy intellektga so'rov yuborish
-        response = model.generate_content(
-            f"Sen matematika va fizika fanlari o'qituvchisan. Quyidagi savolga aniq va bosqichma-bosqich javob ber: {user_prompt}"
+        # Blocking amaliyotni async qilish
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            executor,
+            lambda: model.generate_content(
+                f"Sen matematika va fizika fanlari o'qituvchisan. Quyidagi savolga aniq va bosqichma-bosqich javob ber: {user_prompt}"
+            )
         )
-        await message.reply(f"💡 **Javob:**\n\n{response.text}")
+        
+        # Uzun javoblarni bo'limlash (Telegram 4096 belgi chegarasi)
+        response_text = response.text
+        if len(response_text) > 4096:
+            for i in range(0, len(response_text), 4096):
+                await message.reply(f"💡 **Javob ({i//4096 + 1}):**\n\n{response_text[i:i+4096]}")
+        else:
+            await message.reply(f"💡 **Javob:**\n\n{response_text}")
+            
     except Exception as e:
-        # Agarda yana xato bersa, aniq sababini guruhga chiqaradi
         await message.reply(f"❌ Xatolik yuz berdi:\n`{str(e)}`")
 
-# Rasm bilan ishlaydigan vaqtinchalik sodda handler (Xatolikni kamaytirish uchun)
+# Rasm bilan ishlaydigan handler
 @dp.message(F.photo)
 async def handle_photo_info(message: types.Message):
     if message.caption and message.caption.strip().startswith('/bot'):
