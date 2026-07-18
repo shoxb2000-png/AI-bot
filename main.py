@@ -4,12 +4,13 @@ from aiogram import Bot, Dispatcher, types, F
 import google.generativeai as genai
 from aiohttp import web
 
-# API kalitlar
+# API kalitlar - Render Environment Variables orqali o'qiladi
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+# Model nomini Google API talabiga ko'ra 'models/gemini-1.5-flash' ko'rinishida yozamiz
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
@@ -23,7 +24,6 @@ async def start_web_server():
     app.router.add_get('/', handle_root)
     runner = web.AppRunner(app)
     await runner.setup()
-    # Render avtomatic PORT muhitini beradi, agar bo'lmasa 10000 portni oladi
     port = int(os.getenv("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
@@ -89,9 +89,7 @@ async def handle_reply_to_photo(message: types.Message):
 
 # --- ASOSIY ISHGA TUSHIRISH ---
 async def main():
-    # Veb serverni fonda yoqamiz (Render portni ko'rishi uchun)
     await start_web_server()
-    # Bot pollingni boshlaymiz
     await dp.start_polling(bot)
 
 if __name__ == '__main__':
