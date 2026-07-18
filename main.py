@@ -8,9 +8,9 @@ from aiohttp import web
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Model nomini Google API talabiga ko'ra 'models/gemini-1.5-flash' ko'rinishida yozamiz
+# Google API bilan bog'lanish va modelni to'g'ri formatda sozlash
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('models/gemini-1.5-flash')
+model = genai.GenerativeModel(model_name='gemini-1.5-flash')
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
