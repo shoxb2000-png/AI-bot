@@ -17,7 +17,7 @@ if not TELEGRAM_BOT_TOKEN or not GOOGLE_API_KEY:
 genai.configure(api_key=GOOGLE_API_KEY)
 
 # MUHIM: Eng yangi va tezkor modelga o'tamiz
-model = genai.GenerativeModel('gemini-2.0-flash')
+model = genai.GenerativeModel('gemini-1.5-flash')
 executor = ThreadPoolExecutor(max_workers=3)
 
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
